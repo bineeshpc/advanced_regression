@@ -33,6 +33,8 @@ from sklearn.feature_selection import RFE
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.stats.stattools import durbin_watson
+from scipy.stats import f_oneway
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -268,6 +270,40 @@ for categorical_variable in categorical_variables:
 numerical_variables = numerical_variables + ['3SsnPorch', 'LowQualFinSF', 'PoolArea']
 categorical_variables = list(set(categorical_variables) - set(['3SsnPorch', 'LowQualFinSF', 'PoolArea']))
 
+
+#%%
+
+
+
+# Load your dataset (replace 'your_dataset.csv' with your actual dataset)
+data = df
+
+# Assuming 'categorical_var' is the column name of your categorical variable
+
+d = {}
+categoricals = []
+f_statistics = []
+p_values = []
+for categorical_var in categorical_variables:
+    # Assuming 'numerical_var' is the column name of your numerical variable
+    numerical_var = 'SalePrice'
+
+    # Perform ANOVA
+    grouped_data = [data[numerical_var][data[categorical_var] == category] for category in data[categorical_var].unique()]
+    f_stat, p_value = f_oneway(*grouped_data)
+
+    # Output the results
+    # print(f" {categorical_var} F-statistic: {f_stat} P-value: {p_value}")
+    categoricals.append(categorical_var)
+    f_statistics.append(f_stat)
+    p_values.append(p_value)
+    
+d = {"categorical": categoricals, "f_statistic": f_statistics, "p_value": p_values}
+f_st_df = pd.DataFrame(d).sort_values(by=["f_statistic"], ascending=True)
+
+f_st_df[f_st_df["p_value"] < 0.05].sort_values(by=["f_statistic"], ascending=False)
+
+
 #%%
 
 corr = df[numerical_variables].corr()
@@ -361,3 +397,4 @@ df['SalePrice'].describe()
 
 
 pd.Series(model.coef_, X_train.columns).sort_values(ascending=False)
+
