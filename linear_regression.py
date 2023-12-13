@@ -101,6 +101,48 @@ df.info()
 #%% [markdown]
 
 # ## Data Cleaning
+
+
+#%%
+
+# Set the threshold for missing values (e.g., 30% missing values)
+threshold = 0.8
+
+def drop_columns_with_missing_values(df, threshold):
+    # Calculate the percentage of missing values in each column
+    missing_values = df.isnull().mean()
+    
+    # Select columns where the percentage of missing values is above the threshold
+    columns_to_drop = missing_values[missing_values > threshold].index.tolist()
+    
+    # Drop columns with more missing values
+    df1 = df.drop(columns=columns_to_drop)
+    
+    print("dropped columns with more than {}% missing values: {}".format(threshold * 100, columns_to_drop))
+    return df1
+
+df = drop_columns_with_missing_values(df, threshold)
+
+#%%
+
+threshold = 0.8  # Define the threshold for bias (80% or more)
+
+def drop_biased_columns(df, threshold):
+    # Calculate the percentage of the most frequent value in each column
+    most_frequent_value_percentage = df.apply(lambda col: col.value_counts(normalize=True).max())
+    
+    # Select columns where the most frequent value percentage is above the threshold
+    biased_columns = most_frequent_value_percentage[most_frequent_value_percentage >= threshold].index.tolist()
+    
+    # Drop columns biased towards a single/few values
+    df1 = df.drop(columns=biased_columns)
+    
+    print("dropped columns biased towards a single/few values: {}".format(biased_columns))
+    return df1
+
+df = drop_biased_columns(df, threshold)
+
+
 #%%
 # identify the columns with null values
 null_value_columns = list(df.columns[df.isnull().sum() > 0])
@@ -267,8 +309,8 @@ for categorical_variable in categorical_variables:
 # some categorical variables identified were actually numerical variables
 # convert them to numerical variables
 
-numerical_variables = numerical_variables + ['3SsnPorch', 'LowQualFinSF', 'PoolArea']
-categorical_variables = list(set(categorical_variables) - set(['3SsnPorch', 'LowQualFinSF', 'PoolArea']))
+# numerical_variables = numerical_variables + ['3SsnPorch', 'LowQualFinSF', 'PoolArea']
+# categorical_variables = list(set(categorical_variables) - set(['3SsnPorch', 'LowQualFinSF', 'PoolArea']))
 
 
 #%%

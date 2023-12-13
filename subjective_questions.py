@@ -1,4 +1,5 @@
 #%% [markdown]
+# ## Q1
 # 1. What is the optimal value of alpha for ridge and lasso regression? What will be the changes in the model if you choose double the value of alpha for both ridge and lasso? What will be the most important predictor variables after the change is implemented?
 
 # <br> <br>
@@ -19,6 +20,7 @@
 
 #%% [markdown]
 
+# ## Q2
 # 2. You have determined the optimal value of lambda for ridge and lasso regression during the assignment. Now, which one will you choose to apply and why?
 
 # <br><br>Choosing Based on Optimal Lambda
@@ -27,9 +29,12 @@
 # Ultimately, the choice between Ridge and Lasso regression, or the optimal lambda value, is a balance between model complexity, interpretability, and performance. It's often beneficial to compare the performance of both models (using metrics like mean squared error, R-squared, etc.) and consider the implications of their feature selection capabilities before making a final decision.
 #%% [markdown]
 
+# ## Q3
 # 3. After building the model, you realised that the five most important predictor variables in the lasso model are not available in the incoming data. You will now have to create another model excluding the five most important predictor variables. Which are the five most important predictor variables now?
 
 #%% [markdown]
+
+# ## Q4
 # 4. How can you make sure that a model is robust and generalisable? What are the implications of the same for the accuracy of the model and why?
 
 # <br><br>
