@@ -26,6 +26,13 @@
 
 from matplotlib import rcParams
 from IPython.display import display
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.feature_selection import RFE
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.stats.stattools import durbin_watson
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -39,16 +46,33 @@ import sklearn.preprocessing as preprocessing
 import sklearn.model_selection as model_selection
 import sklearn.feature_selection as feature_selection
 import sklearn.pipeline as pipeline
-from sklearn.preprocessing import LabelEncoder
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.feature_selection import RFE
-from sklearn.linear_model import LinearRegression, Ridge, Lasso
-from statsmodels.stats.outliers_influence import variance_inflation_factor
-from statsmodels.stats.stattools import durbin_watson
+import ast
+import re
+import json
 import warnings
 warnings.filterwarnings('ignore')
 
+#%%
+
+data_dictionary_file = "data_description.txt"
+with open(data_dictionary_file) as f:
+    string_data = f.read()
+    
+data_dictionary = {}
+values = []
+key, description = None, None
+values = []
+for line in string_data.split('\n'):
+    if ':' in line and 'story' not in line:
+        key, description = line.split(':')
+        data_dictionary[key] = {"description": description}
+        if values != []:
+            data_dictionary[key]["values"] = '\n'.join(values)
+        values = []
+    else:
+        values.append(line.replace('\n', ''))
+        
+data_dictionary.keys()
 #%%
 
 filename = "train.csv"
@@ -134,7 +158,7 @@ def find_categorical_variables(df, num_categories=50):
     return categorical_variables
 
 s = set()
-for num_categories in range(5, 100, 30):
+for num_categories in range(30, 40, 5):
     categorical_variables = find_categorical_variables(df, num_categories)
     print("number of categorical variables with less than {} categories: {}".format(num_categories, len(categorical_variables)))
     print("categorical variables with less than {} categories: {}".format(num_categories, categorical_variables))
@@ -173,23 +197,113 @@ for null_values_categorical_column in null_values_categorical_columns:
 
 #%%
 
+
 df1 = df.drop(columns=['Id'])
-
-
-#%%
 
 # convert categorical variables to categorical type
 for categorical_variable in categorical_variables:
     df1[categorical_variable] = pd.Categorical(df1[categorical_variable])
 
+len(categorical_variables)
+
+#%%
+def categorical_vs_target_boxplot(df1, target):
+    
+
+    range_elements = range(1, 9)
+    length = len(range_elements)
+    
+    for i in range(0, len(categorical_variables), length):
+        plt.figure(figsize=(25, 25))
+        for k in range_elements:
+            cat_variable_num = i + k -1
+            # print(cat_variable_num)
+            plt.subplot(4, 2, k)
+            try:
+                sns.boxplot(x=categorical_variables[cat_variable_num], y=target, data=df1)
+                plt.title(categorical_variables[cat_variable_num] + f' vs {target}')
+            except Exception as e:
+                print(e)
+        plt.show()
+        
+
+categorical_vs_target_boxplot(df1, 'SalePrice')
+
 #%%
 
-# convert categorical variables to label encoding
 
-label_encoder = LabelEncoder()
+def categorical_vs_target_barplot(df1, categorical_variable, target):
+    # Grouping by 'categorical_variable' and calculating mean SalePrice, then sorting values
+    mean_prices = df1.groupby(categorical_variable)[target].mean().sort_values(ascending=False)
+    # print(mean_prices)
+    # Creating a bar plot using Seaborn
+    plt.figure(figsize=(10, 6))
+    sns.barplot(x=mean_prices.index, y=mean_prices.values, palette='viridis', order=mean_prices.index)
+    
+    # Annotating mean values on top of each bar
+    for i, value in enumerate(mean_prices):
+        plt.text(i, value, f'{value:.2f}', ha='center', va='bottom', rotation=45)
+
+    plt.xticks(rotation=45)  # Rotating x-axis labels for better readability
+    plt.xlabel(categorical_variable)
+    plt.ylabel(f'Mean {target}')
+    plt.title(f'Mean {target} by {categorical_variable}')
+    plt.tight_layout()
+    plt.show()
+    if categorical_variable in data_dictionary:
+        print(categorical_variable, data_dictionary[categorical_variable])
+    else:
+        print("No description found for {} in data dictionary".format(categorical_variable))
+
 for categorical_variable in categorical_variables:
-    df1[categorical_variable] = label_encoder.fit_transform(df1[categorical_variable])
+    print(categorical_variable)
+    categorical_vs_target_barplot(df1, categorical_variable, 'SalePrice')
+    print("\n\n")
+    
+#%%
 
+# some categorical variables identified were actually numerical variables
+# convert them to numerical variables
+
+numerical_variables = numerical_variables + ['3SsnPorch', 'LowQualFinSF', 'PoolArea']
+categorical_variables = list(set(categorical_variables) - set(['3SsnPorch', 'LowQualFinSF', 'PoolArea']))
+
+#%%
+
+corr = df[numerical_variables].corr()
+
+# plotting correlations on a heatmap
+
+# figure size
+plt.figure(figsize=(30,30))
+
+# heatmap
+sns.heatmap(corr, cmap="YlGnBu", annot=True)
+plt.show()
+
+#%%
+
+corr1 = corr['SalePrice'].sort_values(ascending=False)
+
+print("Negative Correlations:")
+display(corr1[corr1 < 0])
+
+threshold = 0.5
+print("Top 10 Positive Correlations greater than {}:".format(threshold))
+display(corr1[corr1 > threshold])
+
+indices = corr1[corr1 > threshold].index
+
+def highlight(corr, threshold_low, threshold_high, color):
+    # Apply styling to the correlation matrix 'corr'
+    return corr.style.apply(
+        # Lambda function to apply background color 'red' if value 'v' in row 'x' is greater than 'threshold', else no styling
+        lambda x: [f"background: {color}" if v > threshold_low and v < threshold_high else "" for v in x],
+        axis=1  # Apply the function along rows (axis=1)
+    )
+    
+display(highlight(corr.loc[indices, indices], .8, 1, 'red'))
+highlight(corr.loc[indices, indices], .7, .8, 'yellow')
 #%%
 
 def get_metrics(y_train, y_train_pred, y_test, y_test_pred):
@@ -207,6 +321,9 @@ def get_metrics(y_train, y_train_pred, y_test, y_test_pred):
     
 #%%
 
+# build a model with only numerical variables
+df1 = df.drop(columns=categorical_variables)
+df1 = df1.drop(columns=['Id'])
 X = df1.drop(columns=['SalePrice'])
 y = df1['SalePrice']
 
