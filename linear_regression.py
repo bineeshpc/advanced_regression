@@ -102,7 +102,11 @@ df.info()
 
 # ## Data Cleaning
 
+#%%
 
+# checking duplicate rows
+duplicate_rows = df[df.duplicated()]
+print("number of duplicate rows: ", duplicate_rows.shape[0])
 #%%
 
 # Set the threshold for missing values (e.g., 30% missing values)
@@ -343,8 +347,8 @@ for categorical_var in categorical_variables:
 d = {"categorical": categoricals, "f_statistic": f_statistics, "p_value": p_values}
 f_st_df = pd.DataFrame(d).sort_values(by=["f_statistic"], ascending=True)
 
-f_st_df[f_st_df["p_value"] < 0.05].sort_values(by=["f_statistic"], ascending=False)
-
+sorted_by_f_st = f_st_df[f_st_df["p_value"] < 0.05].sort_values(by=["f_statistic"], ascending=False)
+sorted_by_f_st
 
 #%%
 
@@ -440,3 +444,211 @@ df['SalePrice'].describe()
 
 pd.Series(model.coef_, X_train.columns).sort_values(ascending=False)
 
+#%%
+# sorted_by_f_st.head(2)
+important_categoricals = sorted_by_f_st[sorted_by_f_st['f_statistic'] > 300]
+display(important_categoricals)
+important_categoricals = important_categoricals['categorical'].tolist()
+
+for important_categorical in important_categoricals:
+    print(important_categorical)
+    # categorical_vs_target_barplot(df1, important_categorical, 'SalePrice')
+    df[important_categorical].value_counts().plot(kind='bar')
+    plt.show()
+    
+    
+print(important_categoricals)
+
+#%%
+
+sorted_by_f_st
+
+from scipy.stats import chi2_contingency
+
+def sort_categorical_variables_by_independence(df, categorical_vars):
+    independence_scores = []
+
+    # Iterate through pairs of categorical variables
+    for i in range(len(categorical_vars)):
+        for j in range(i + 1, len(categorical_vars)):
+            cross_tab = pd.crosstab(df[categorical_vars[i]], df[categorical_vars[j]])
+            chi2, _, _, _ = chi2_contingency(cross_tab)
+            n = cross_tab.sum().sum()
+            cramers_v = np.sqrt(chi2 / (n * (min(cross_tab.shape) - 1)))
+            independence_scores.append((categorical_vars[i], categorical_vars[j], cramers_v))
+
+    # Create DataFrame of independence scores and sort by Cramer's V
+    sorted_df = pd.DataFrame(independence_scores, columns=['Variable 1', 'Variable 2', 'Cramer\'s V'])
+    sorted_df = sorted_df.sort_values(by='Cramer\'s V', ascending=False)
+
+    return sorted_df
+
+sorted_df = sort_categorical_variables_by_independence(df, sorted_by_f_st['categorical'].tolist())
+
+sorted_df
+
+#%%
+
+sorted_df[0:50]
+
+#%%
+
+len(categorical_variables)
+
+#%%
+
+
+def create_dummy_variables(df, categorical_variables):
+    """
+    Create dummy variables for categorical variables in a DataFrame.
+
+    Parameters:
+    df (pandas DataFrame): The DataFrame containing categorical variables.
+    categorical_variables (list): List of categorical variables.
+
+    Returns:
+    pandas DataFrame: DataFrame with dummy variables for categorical variables.
+    """
+    dummies = []
+    for categorical_variable in categorical_variables:
+        dummy = pd.get_dummies(df[categorical_variable], prefix=categorical_variable, drop_first=True)
+        dummies.append(dummy)
+
+    df = df.drop(categorical_variables, axis=1)
+    df = pd.concat([df] + dummies, axis=1)
+
+    return df
+
+def perform_rfe_and_get_summary(X_train, y_train, n_features=10):
+    """
+    Perform Recursive Feature Elimination (RFE) using Linear Regression and provide a summary.
+
+    Parameters:
+    X_train (pandas DataFrame or array-like): Training features.
+    y_train (pandas Series or array-like): Training target.
+    n_features (int): Number of features to select. Default is 10.
+
+    Returns:
+    tuple: Tuple containing RFE object and DataFrame summarizing the selection process.
+    """
+    lm = LinearRegression()
+    rfe = RFE(lm, n_features_to_select=n_features)
+    rfe.fit(X_train, y_train)
+    
+    rfe_df = pd.DataFrame({
+        "column": X_train.columns,
+        "support": rfe.support_,
+        "ranking": rfe.ranking_
+    })
+    rfe_df.sort_values(by="ranking", inplace=True)
+    
+    return rfe, rfe_df
+
+
+def create_X_y(df, target_variable):
+    """
+    Create features (X) and target variable (y) from a DataFrame.
+
+    Parameters:
+    df (pandas DataFrame): The DataFrame containing features and target variable.
+    target_variable (str): Name of the target variable.
+
+    Returns:
+    tuple: Tuple containing features (X) and target variable (y).
+    """
+    if 'Id' in df.columns:
+        df = df.drop(columns=['Id'])
+
+    X = df.drop(columns=[target_variable])
+    y = df[target_variable]
+
+    return X, y
+
+def perform_train_test_split(X, y, test_size=0.3, random_state=42):
+    """
+    Perform train-test split for features and target variable.
+
+    Parameters:
+    X (pandas DataFrame or array-like): Features.
+    y (pandas Series or array-like): Target variable.
+    test_size (float or int): Proportion of the dataset to include in the test split.
+                              Default is 0.3 (30% for the test set).
+    random_state (int): Controls the shuffling applied to the data before splitting.
+                        Pass an int for reproducible output. Default is 42.
+
+    Returns:
+    tuple: Tuple containing X_train, X_test, y_train, y_test.
+    """
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+    return X_train, X_test, y_train, y_test
+
+def scale_features_with_scaler(scaler, X_train, X_test):
+    """
+    Scale the features using a specified scaler.
+
+    Parameters:
+    scaler (scaler object): Scaler instance (e.g., StandardScaler, MinMaxScaler, etc.).
+    X_train (pandas DataFrame or array-like): Training features.
+    X_test (pandas DataFrame or array-like): Test features.
+
+    Returns:
+    tuple: Tuple containing scaled X_train and X_test.
+    """
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    return X_train_scaled, X_test_scaled
+
+def scaled_arrays_to_dataframe(X_scaled, columns):
+    """
+    Convert scaled NumPy array to a pandas DataFrame with specified columns.
+
+    Parameters:
+    X_scaled (array-like): Scaled feature array.
+    columns (list): Column names for the DataFrame.
+
+    Returns:
+    pandas DataFrame: DataFrame containing scaled features.
+    """
+    df_scaled = pd.DataFrame(X_scaled, columns=columns)
+    return df_scaled
+
+#%%
+
+def experiment_num_features(n):
+    df2 = create_dummy_variables(df, categorical_variables)
+
+    X, y = create_X_y(df2, 'SalePrice')
+    X_train, X_test, y_train, y_test = perform_train_test_split(X, y, test_size=0.3, random_state=42)
+    X_train_scaled, X_test_scaled = scale_features_with_scaler(MinMaxScaler(), X_train, X_test)
+    X_train_scaled = scaled_arrays_to_dataframe(X_train_scaled, X_train.columns)
+    X_test_scaled = scaled_arrays_to_dataframe(X_test_scaled, X_test.columns)
+    rfe, rfe_df = perform_rfe_and_get_summary(X_train_scaled, y_train, n_features=n)
+
+    rfe_df1 = rfe_df[0:n]["column"].apply(lambda x: x.split("_")[0]).value_counts()
+    
+    return rfe, rfe_df, rfe_df1
+
+d = {}
+for i in range(50, 151, 10):
+    rfe, rfe_df, rfe_df1 = experiment_num_features(i)
+    d[i] = (rfe, rfe_df, rfe_df1)
+
+#%%
+d[50][2].index.tolist()
+#%%
+
+for num_features in d:
+    df1 = df[d[num_features][2].index.tolist() + ['SalePrice']]
+    cat = list(set(categorical_variables) & set(df1.columns))
+    df2 = create_dummy_variables(df1, cat)
+
+    X, y = create_X_y(df2, 'SalePrice')
+    X_train, X_test, y_train, y_test = perform_train_test_split(X, y, test_size=0.3, random_state=42)
+    X_train_scaled, X_test_scaled = scale_features_with_scaler(MinMaxScaler(), X_train, X_test)
+    X_train_scaled = scaled_arrays_to_dataframe(X_train_scaled, X_train.columns)
+    X_test_scaled = scaled_arrays_to_dataframe(X_test_scaled, X_test.columns)
+
+    model = Lasso(alpha=0.1)
+    model, metrics_df = train_model(X_train_scaled, y_train, X_test_scaled, y_test, model)
+    print(num_features, len(df1.columns), df1.columns)
+    display(metrics_df)
