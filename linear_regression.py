@@ -326,7 +326,7 @@ data = df
 
 # Assuming 'categorical_var' is the column name of your categorical variable
 
-d = {}
+num_features_to_rfe_info_mapping = {}
 categoricals = []
 f_statistics = []
 p_values = []
@@ -344,8 +344,8 @@ for categorical_var in categorical_variables:
     f_statistics.append(f_stat)
     p_values.append(p_value)
     
-d = {"categorical": categoricals, "f_statistic": f_statistics, "p_value": p_values}
-f_st_df = pd.DataFrame(d).sort_values(by=["f_statistic"], ascending=True)
+num_features_to_rfe_info_mapping = {"categorical": categoricals, "f_statistic": f_statistics, "p_value": p_values}
+f_st_df = pd.DataFrame(num_features_to_rfe_info_mapping).sort_values(by=["f_statistic"], ascending=True)
 
 sorted_by_f_st = f_st_df[f_st_df["p_value"] < 0.05].sort_values(by=["f_statistic"], ascending=False)
 sorted_by_f_st
@@ -628,17 +628,18 @@ def experiment_num_features(n):
     
     return rfe, rfe_df, rfe_df1
 
-d = {}
+num_features_to_rfe_info_mapping = {}
 for i in range(50, 151, 10):
     rfe, rfe_df, rfe_df1 = experiment_num_features(i)
-    d[i] = (rfe, rfe_df, rfe_df1)
+    num_features_to_rfe_info_mapping[i] = (rfe, rfe_df, rfe_df1)
 
 #%%
-d[50][2].index.tolist()
+num_features_to_rfe_info_mapping[50][2].index.tolist()
 #%%
 
-for num_features in d:
-    df1 = df[d[num_features][2].index.tolist() + ['SalePrice']]
+def create_model_with_num_features(num_features):
+    df1 = df[num_features_to_rfe_info_mapping[num_features][2].index.tolist() + ['SalePrice']]
+    print("actual number of independent features: ", len(df1.columns) - 1)
     cat = list(set(categorical_variables) & set(df1.columns))
     df2 = create_dummy_variables(df1, cat)
 
@@ -652,3 +653,308 @@ for num_features in d:
     model, metrics_df = train_model(X_train_scaled, y_train, X_test_scaled, y_test, model)
     print(num_features, len(df1.columns), df1.columns)
     display(metrics_df)
+    return model, metrics_df, X_train_scaled
+
+for num_features in num_features_to_rfe_info_mapping:
+    model, metrics_df, X_train_scaled = create_model_with_num_features(num_features)
+    
+#%%
+def calculate_vif(X):
+    """
+    Calculate Variance Inflation Factor (VIF) for features in a DataFrame.
+
+    Parameters:
+    X (pandas DataFrame): DataFrame containing the features.
+
+    Returns:
+    pandas DataFrame: DataFrame with calculated VIF for each feature.
+    """
+    vif_df = pd.DataFrame()
+    vif_df['Features'] = X.columns
+    vif_df['VIF'] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+    vif_df['VIF'] = round(vif_df['VIF'], 2)
+    vif_df = vif_df.sort_values(by="VIF", ascending=False)
+    return vif_df
+
+def build_ols_model(X, y):
+    """
+    Build an Ordinary Least Squares (OLS) model using statsmodels, print the model summary, and return the fitted model.
+
+    Parameters:
+    X (pandas DataFrame): DataFrame containing the features.
+    y (pandas Series): Series containing the target variable.
+
+    Returns:
+    statsmodels regression summary: Summary of the fitted OLS model.
+    """
+    X = sm.add_constant(X)  # Adding a constant column for intercept
+    model = sm.OLS(y.values, X).fit()  # Fit the OLS model
+    print(model.summary())  # Print the summary of the fitted model
+    return model  # Return the fitted model
+
+
+def drop_features_and_create_model(df, features_to_drop, target_variable):
+    df1 = df[num_features_to_rfe_info_mapping[num_features][2].index.tolist() + [target_variable]]
+    
+    df1 = df1.drop(columns=features_to_drop)
+    print("actual number of independent features: ", len(df1.columns) - 1)
+    cat = list(set(categorical_variables) & set(df1.columns))
+    df2 = create_dummy_variables(df1, cat)
+
+    X, y = create_X_y(df2, 'SalePrice')
+    X_train, X_test, y_train, y_test = perform_train_test_split(X, y, test_size=0.3, random_state=42)
+    X_train_scaled, X_test_scaled = scale_features_with_scaler(MinMaxScaler(), X_train, X_test)
+    X_train_scaled = scaled_arrays_to_dataframe(X_train_scaled, X_train.columns)
+    X_test_scaled = scaled_arrays_to_dataframe(X_test_scaled, X_test.columns)
+
+    vif_df = calculate_vif(X_train_scaled)
+
+    display(vif_df)
+    variables_with_infinite_vif = vif_df[vif_df['VIF'] == np.inf]["Features"].apply(lambda x: x.split("_")[0]).value_counts().index.tolist()
+
+    print("variables with infinite VIF: ", variables_with_infinite_vif)
+    return build_ols_model(X_train_scaled, y_train)
+
+
+def get_summary_info_sorted(model):
+    """
+    Extract feature names, coefficients, t-values, and p-values from the summary of an OLS model and sort by p-values.
+
+    Parameters:
+    model (statsmodels.regression.linear_model.RegressionResultsWrapper): Fitted OLS model.
+
+    Returns:
+    pandas.DataFrame: DataFrame containing information for each feature sorted by p-values.
+    """
+    # Get the summary of the fitted model
+    summary = model.summary()
+    
+    # Extract information from the summary
+    results = summary.tables[1].data
+    
+    # Create DataFrame with extracted information
+    columns = ["feature", "coef", "std err", "t", "p", "[0.025", "0.975]"]
+    df = pd.DataFrame(results)
+    
+    # display(df)
+    
+    new_header = df.iloc[0]  # Grab the first row for the header
+    new_header[0] = "feature"
+    df = df[1:]  # Take the data except the first row
+    df.columns = new_header  # Set the header row as the DataFrame column names
+    # print("columns are", df.columns)
+    # Convert relevant columns to numeric types
+    p_column = 'P>|t|'
+    df[['coef', 't', p_column]] = df[['coef', 't', p_column]].apply(pd.to_numeric)
+    
+    # # Sort DataFrame by p-values
+    sorted_df = df.sort_values(by=p_column, ascending=False)
+    
+    return sorted_df
+
+def get_r2_adjusted_r2(model):
+    """
+    Extract R-squared and adjusted R-squared values from the summary of a fitted model.
+
+    Parameters:
+    model (statsmodels.regression.linear_model.RegressionResultsWrapper): Fitted regression model.
+
+    Returns:
+    tuple: Tuple containing R-squared and adjusted R-squared values.
+    """
+    # Get the summary of the fitted model
+    summary = model.summary()
+    
+    # Extract R-squared and adjusted R-squared from the summary
+    r_squared = float(summary.tables[0].data[0][3])
+    adj_r_squared = float(summary.tables[0].data[1][3])
+
+    print("R-squared: ", r_squared, "Adjusted R-squared: ", adj_r_squared)
+    return r_squared, adj_r_squared
+#%%    
+for num_features in num_features_to_rfe_info_mapping:
+    model, metrics_df, X_train_scaled = create_model_with_num_features(num_features)
+
+num_features = 50
+model, metrics_df, X_train_scaled = create_model_with_num_features(num_features)
+
+#%%
+vif_df = calculate_vif(X_train_scaled)
+
+variables_with_infinite_vif = vif_df[vif_df['VIF'] == np.inf]["Features"].apply(lambda x: x.split("_")[0]).value_counts().index.tolist()
+
+print("variables with infinite VIF: ", variables_with_infinite_vif)
+
+
+
+
+build_ols_model(X_train_scaled, y_train)
+
+#%%
+sorted_df[sorted_df['Variable 2'] == 'BedroomAbvGr'].head(1)
+
+##
+#%%
+# drop BedroomAbvGr
+
+model = drop_features_and_create_model(df, ['BedroomAbvGr'], 'SalePrice')
+df3 = get_summary_info_sorted(model)
+df3[['feature', 'P>|t|']].head(20)
+
+#%%
+
+model = drop_features_and_create_model(df, ['Neighborhood', 'BedroomAbvGr'], 'SalePrice')
+df3 = get_summary_info_sorted(model)
+df3[['feature', 'P>|t|']].head(20)
+
+
+#%%
+
+model = drop_features_and_create_model(df, ['Neighborhood', 'BedroomAbvGr', 'MSSubClass'], 'SalePrice')
+df3 = get_summary_info_sorted(model)
+df3[['feature', 'P>|t|']].head(20)
+
+#%%
+
+model = drop_features_and_create_model(df, ['Neighborhood', 'BedroomAbvGr', 'MSSubClass', 'OverallQual'], 'SalePrice')
+df3 = get_summary_info_sorted(model)
+df3[['feature', 'P>|t|']].head(20)
+
+#%%
+model = drop_features_and_create_model(df, ['Neighborhood', 'BedroomAbvGr', 'MSSubClass', 'OverallQual', 'TotRmsAbvGrd'], 'SalePrice')
+df3 = get_summary_info_sorted(model)
+df3[['feature', 'P>|t|']].head(20)
+
+#%%
+columns_to_drop = ['Neighborhood', 'BedroomAbvGr', 'MSSubClass', 'OverallQual', 'TotRmsAbvGrd',
+'FireplaceQu']
+model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+df3[['feature', 'P>|t|']].head(20)
+
+#%%
+
+columns_to_drop = ['Neighborhood', 'BedroomAbvGr', 'MSSubClass', 'OverallQual', 'TotRmsAbvGrd',
+'FireplaceQu',
+'Exterior2nd']
+model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+df3[['feature', 'P>|t|']].head(20)
+
+
+#%%
+
+
+columns_to_drop = ['Neighborhood', 'BedroomAbvGr', 'MSSubClass', 'OverallQual', 'TotRmsAbvGrd',
+'FireplaceQu',
+'Exterior2nd',
+'BsmtExposure']
+model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+df3[['feature', 'P>|t|']].head(20)
+
+#%%
+
+columns_to_drop = ['Neighborhood', 'BedroomAbvGr', 'MSSubClass', 'OverallQual', 'TotRmsAbvGrd',
+'FireplaceQu',
+'Exterior2nd',
+'BsmtExposure',
+'BsmtFinType1']
+model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+df3[['feature', 'P>|t|']].head(20)
+
+#%%
+
+columns_to_drop = ['Neighborhood', 'BedroomAbvGr', 'MSSubClass', 'OverallQual', 'TotRmsAbvGrd',
+'FireplaceQu',
+'Exterior2nd',
+'BsmtExposure',
+'BsmtFinType1',
+'GarageFinish']
+model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+df3[['feature', 'P>|t|']].head(20)
+
+#%%
+
+columns_to_drop = ['Neighborhood', 'BedroomAbvGr', 'MSSubClass', 'OverallQual', 'TotRmsAbvGrd',
+'FireplaceQu',
+'Exterior2nd',
+'BsmtExposure',
+'BsmtFinType1',
+'GarageFinish',
+'OverallCond']
+model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+df3[['feature', 'P>|t|']].head(20)
+
+#%%
+
+columns_to_drop = ['Neighborhood', 'BedroomAbvGr', 'MSSubClass', 'OverallQual', 'TotRmsAbvGrd',
+'FireplaceQu',
+'Exterior2nd',
+'BsmtExposure',
+'BsmtFinType1',
+'GarageFinish',
+'OverallCond',
+'FullBath']
+model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+df3[['feature', 'P>|t|']].head(20)
+
+#%%
+
+columns_to_drop = ['Neighborhood', 'BedroomAbvGr', 'MSSubClass', 'OverallQual', 'TotRmsAbvGrd',
+'FireplaceQu',
+'Exterior2nd',
+'BsmtExposure',
+'BsmtFinType1',
+'GarageFinish',
+'OverallCond',
+'FullBath',
+'GarageCars']
+model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+df3[['feature', 'P>|t|']].head(20)
+
+#%%
+
+columns_to_drop = ['Neighborhood', 'BedroomAbvGr', 'MSSubClass', 'OverallQual', 'TotRmsAbvGrd',
+'FireplaceQu',
+'Exterior2nd',
+'BsmtExposure',
+'BsmtFinType1',
+'GarageFinish',
+'OverallCond',
+'FullBath',
+'GarageCars',
+'LotFrontage']
+model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+
+df3[['feature', 'P>|t|']].head(20)
+
+#%%
+
+columns_to_drop = ['Neighborhood', 'BedroomAbvGr', 'MSSubClass', 'OverallQual', 'TotRmsAbvGrd',
+'FireplaceQu',
+'Exterior2nd',
+'BsmtExposure',
+'BsmtFinType1',
+'GarageFinish',
+'OverallCond',
+'FullBath',
+'GarageCars',
+'LotFrontage',
+'GarageType']
+model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+
+df3[['feature', 'P>|t|']].head(20)
+
+#%%
+
+model
