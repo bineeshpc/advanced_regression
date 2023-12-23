@@ -154,6 +154,42 @@ def drop_biased_columns(df, threshold):
 
 df = drop_biased_columns(df, threshold)
 
+# %%
+
+
+def remove_outliers(df, columns, threshold=3):
+    """
+    Remove outliers from specified columns in a DataFrame using z-score method.
+
+    Parameters:
+    df (pandas DataFrame): Input DataFrame.
+    columns (list): List of columns to check for outliers.
+    threshold (float): Threshold for outliers in terms of z-score. Default is 3.
+
+    Returns:
+    pandas DataFrame: DataFrame with outliers removed.
+    """
+    df_out = df.copy()
+    for col in columns:
+        # Calculate z-scores for the specified column
+        z = np.abs(stats.zscore(df_out[col]))
+
+        # Remove rows where z-score exceeds the defined threshold
+        df_out = df_out[(z < threshold)]
+
+    return df_out
+
+
+def remove_outliers_iqr(df, columns):
+    for column in columns:
+        q1 = df[column].quantile(0.25)
+        q3 = df[column].quantile(0.75)
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+        df = df[(df[column] >= lower_bound) & (df[column] <= upper_bound)]
+    return df
+
 
 # %%
 # identify the columns with null values
@@ -414,6 +450,21 @@ def highlight(corr, threshold_low, threshold_high, color):
 
 display(highlight(corr.loc[indices, indices], .8, 1, 'red'))
 highlight(corr.loc[indices, indices], .7, .8, 'yellow')
+
+# %%
+sns.scatterplot(x='OverallQual', y='SalePrice', data=df)
+
+
+# %%
+
+sns.scatterplot(x='GrLivArea', y='SalePrice', data=df)
+
+# %%
+
+df = remove_outliers(df, ['GrLivArea', 'SalePrice'])
+sns.scatterplot(x='GrLivArea', y='SalePrice', data=df)
+
+
 # %%
 
 
@@ -750,12 +801,33 @@ def build_ols_model(X, y):
     statsmodels regression summary: Summary of the fitted OLS model.
     """
     X = sm.add_constant(X)  # Adding a constant column for intercept
-    model = sm.OLS(y.values, X).fit()  # Fit the OLS model
-    print(model.summary())  # Print the summary of the fitted model
-    return model  # Return the fitted model
+    results = sm.OLS(y.values, X).fit()  # Fit the OLS model
+    print(results.summary())  # Print the summary of the fitted model
+    return results  # Return the fitted model
 
 
-def drop_features_and_create_model(df, features_to_drop, target_variable):
+def build_ols_lasso_model(X, y):
+    """
+    Build an Ordinary Least Squares (OLS) model using statsmodels, print the model summary, and return the fitted model.
+
+    Parameters:
+    X (pandas DataFrame): DataFrame containing the features.
+    y (pandas Series): Series containing the target variable.
+
+    Returns:
+    statsmodels regression summary: Summary of the fitted OLS model.
+    """
+    X = sm.add_constant(X)  # Adding a constant column for intercept
+    results = sm.OLS(y.values, X).fit_regularized(
+        method='sqrt_lasso')  # Fit the OLS model
+    try:
+        print(results.summary())  # Print the summary of the fitted model
+    except Exception as e:
+        print(e)
+    return results  # Return the fitted model
+
+
+def drop_features_and_create_model(df, features_to_drop, target_variable, model_builder=build_ols_model):
     df1 = df[num_features_to_rfe_info_mapping[num_features]
              [2].index.tolist() + [target_variable]]
 
@@ -780,7 +852,7 @@ def drop_features_and_create_model(df, features_to_drop, target_variable):
         lambda x: x.split("_")[0]).value_counts().index.tolist()
 
     print("variables with infinite VIF: ", variables_with_infinite_vif)
-    return build_ols_model(X_train_scaled, y_train)
+    return model_builder(X_train_scaled, y_train), (X_train_scaled, X_test_scaled, y_train, y_test)
 
 
 def get_summary_info_sorted(model):
@@ -866,239 +938,183 @@ build_ols_model(X_train_scaled, y_train)
 sorted_df[sorted_df['Variable 2'] == 'BedroomAbvGr'].head(1)
 
 ##
-# %%
-# drop BedroomAbvGr
-
-columns_to_drop = [
-    'BedroomAbvGr'
-]
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
-df3 = get_summary_info_sorted(model)
-df3[['feature', 'P>|t|']].head(20)
 
 # %%
-columns_to_drop = [
-    'BedroomAbvGr',
-    'Neighborhood'
-]
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
-df3 = get_summary_info_sorted(model)
-df3[['feature', 'P>|t|']].head(20)
-
-
+columns_to_drop = []
 # %%
-columns_to_drop = [
-    'Neighborhood',
-    'BedroomAbvGr',
-    'MSSubClass'
-]
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
-df3 = get_summary_info_sorted(model)
-df3[['feature', 'P>|t|']].head(20)
-
-# %%
-columns_to_drop = [
-    'Neighborhood',
-    'BedroomAbvGr',
-    'MSSubClass',
-    'OverallQual'
-]
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
-df3 = get_summary_info_sorted(model)
-df3[['feature', 'P>|t|']].head(20)
-
-# %%
-columns_to_drop = [
-    'Neighborhood',
-    'BedroomAbvGr',
-    'MSSubClass',
-    'OverallQual',
-    'TotRmsAbvGrd'
-]
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
-df3 = get_summary_info_sorted(model)
-df3[['feature', 'P>|t|']].head(20)
-
-# %%
-columns_to_drop = [
-    'Neighborhood',
-    'BedroomAbvGr',
-    'MSSubClass',
-    'OverallQual',
-    'TotRmsAbvGrd',
-    'FireplaceQu']
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
-df3 = get_summary_info_sorted(model)
-df3[['feature', 'P>|t|']].head(20)
-
-# %%
-
-columns_to_drop = [
-    'Neighborhood',
-    'BedroomAbvGr',
-    'MSSubClass',
-    'OverallQual',
-    'TotRmsAbvGrd',
-    'FireplaceQu',
-    'Exterior2nd']
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
-df3 = get_summary_info_sorted(model)
-df3[['feature', 'P>|t|']].head(20)
+#
 
 
-# %%
-
-
-columns_to_drop = [
-    'Neighborhood',
-    'BedroomAbvGr',
-    'MSSubClass',
-    'OverallQual',
-    'TotRmsAbvGrd',
-    'FireplaceQu',
-    'Exterior2nd',
-    'BsmtExposure']
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
-df3 = get_summary_info_sorted(model)
-df3[['feature', 'P>|t|']].head(20)
-
-# %%
-
-columns_to_drop = [
-    'Neighborhood',
-    'BedroomAbvGr',
-    'MSSubClass',
-    'OverallQual',
-    'TotRmsAbvGrd',
-    'FireplaceQu',
-    'Exterior2nd',
-    'BsmtExposure',
-    'BsmtFinType1']
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
-df3 = get_summary_info_sorted(model)
-df3[['feature', 'P>|t|']].head(20)
-
-# %%
-
-columns_to_drop = [
-    'Neighborhood',
-    'BedroomAbvGr',
-    'MSSubClass',
-    'OverallQual',
-    'TotRmsAbvGrd',
-    'FireplaceQu',
-    'Exterior2nd',
-    'BsmtExposure',
-    'BsmtFinType1',
-    'GarageFinish']
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
-df3 = get_summary_info_sorted(model)
-df3[['feature', 'P>|t|']].head(20)
-
-# %%
-
-columns_to_drop = [
-    'Neighborhood',
-    'BedroomAbvGr',
-    'MSSubClass',
-    'OverallQual',
-    'TotRmsAbvGrd',
-    'FireplaceQu',
-    'Exterior2nd',
-    'BsmtExposure',
-    'BsmtFinType1',
-    'GarageFinish',
-    'OverallCond']
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
-df3 = get_summary_info_sorted(model)
-df3[['feature', 'P>|t|']].head(20)
-
-# %%
-
-columns_to_drop = [
-    'Neighborhood',
-    'BedroomAbvGr',
-    'MSSubClass',
-    'OverallQual',
-    'TotRmsAbvGrd',
-    'FireplaceQu',
-    'Exterior2nd',
-    'BsmtExposure',
-    'BsmtFinType1',
-    'GarageFinish',
-    'OverallCond',
-    'FullBath']
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
-df3 = get_summary_info_sorted(model)
-df3[['feature', 'P>|t|']].head(20)
-
-# %%
-
-columns_to_drop = [
-    'Neighborhood',
-    'BedroomAbvGr',
-    'MSSubClass',
-    'OverallQual',
-    'TotRmsAbvGrd',
-    'FireplaceQu',
-    'Exterior2nd',
-    'BsmtExposure',
-    'BsmtFinType1',
-    'GarageFinish',
-    'OverallCond',
-    'FullBath',
-    'GarageCars']
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
-df3 = get_summary_info_sorted(model)
-df3[['feature', 'P>|t|']].head(20)
-
-# %%
-
-columns_to_drop = [
-    'Neighborhood',
-    'BedroomAbvGr',
-    'MSSubClass',
-    'OverallQual',
-    'TotRmsAbvGrd',
-    'FireplaceQu',
-    'Exterior2nd',
-    'BsmtExposure',
-    'BsmtFinType1',
-    'GarageFinish',
-    'OverallCond',
-    'FullBath',
-    'GarageCars',
-    'LotFrontage']
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
 df3 = get_summary_info_sorted(model)
 get_r2_adjusted_r2(model)
 
 df3[['feature', 'P>|t|']].head(20)
 
-# %%
 
-columns_to_drop = [
-    'Neighborhood',
-    'BedroomAbvGr',
-    'MSSubClass',
-    'OverallQual',
-    'TotRmsAbvGrd',
-    'FireplaceQu',
-    'Exterior2nd',
-    'BsmtExposure',
-    'BsmtFinType1',
-    'GarageFinish',
-    'OverallCond',
-    'FullBath',
-    'GarageCars',
-    'LotFrontage',
-    'GarageType'
-]
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+# %%
+columns_to_drop.extend(['LotConfig'])
+print("Dropped columns: ", columns_to_drop)
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
 df3 = get_summary_info_sorted(model)
 get_r2_adjusted_r2(model)
+df3[['feature', 'P>|t|']].head(20)
 
+
+# %%
+columns_to_drop.extend(['GarageType'])
+print("Dropped columns: ", columns_to_drop)
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
 df3[['feature', 'P>|t|']].head(20)
 
 # %%
-model.params
+columns_to_drop.extend(['MSSubClass'])
+print(f"Dropped the following columns: ")
+display(columns_to_drop)
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+df3[['feature', 'P>|t|']].head(20)
+
+# %%
+
+columns_to_drop.extend(['Exterior2nd'])
+print(f"Dropped the following columns: ")
+display(columns_to_drop)
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+df3[['feature', 'P>|t|']].head(20)
+
+# %%
+
+columns_to_drop.extend(['Foundation'])
+print(f"Dropped the following columns: ")
+display(columns_to_drop)
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+df3[['feature', 'P>|t|']].head(20)
+
+# %%
+columns_to_drop.extend(['FireplaceQu'])
+print(f"Dropped the following columns: ")
+display(columns_to_drop)
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+df3[['feature', 'P>|t|']].head(20)
+
+# %%
+columns_to_drop.extend(['Neighborhood'])
+print(f"Dropped the following columns: ")
+display(columns_to_drop)
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+df3[['feature', 'P>|t|']].head(20)
+
+# %%
+
+columns_to_drop.extend(['Exterior1st'])
+print(f"Dropped the following columns: ")
+display(columns_to_drop)
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+df3[['feature', 'P>|t|']].head(20)
+
+# %%
+
+columns_to_drop.extend(['TotRmsAbvGrd'])
+print(f"Dropped the following columns: ")
+display(columns_to_drop)
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+df3[['feature', 'P>|t|']].head(20)
+
+# %%
+
+columns_to_drop.extend(['BsmtFullBath'])
+print(f"Dropped the following columns: ")
+display(columns_to_drop)
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+df3[['feature', 'P>|t|']].head(20)
+
+
+# %%
+
+columns_to_drop.extend(['OverallQual'])
+print(f"Dropped the following columns: ")
+display(columns_to_drop)
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+df3[['feature', 'P>|t|']].head(20)
+
+# %%
+
+columns_to_drop.extend(['GarageCars'])
+print(f"Dropped the following columns: ")
+display(columns_to_drop)
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+df3[['feature', 'P>|t|']].head(20)
+
+# %%
+
+columns_to_drop.extend(['BsmtFinType1'])
+print(f"Dropped the following columns: ")
+display(columns_to_drop)
+model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+df3[['feature', 'P>|t|']].head(20)
+
+# %%
+
+columns_to_drop.extend(['1stFlrSF'])
+print(f"Dropped the following columns: ")
+display(columns_to_drop)
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+df3[['feature', 'P>|t|']].head(20)
+
+# %%
+
+columns_to_drop.extend(['2ndFlrSF'])
+print(f"Dropped the following columns: ")
+display(columns_to_drop)
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+df3[['feature', 'P>|t|']].head(20)
+
+# %%
+
+columns_to_drop.extend(['OverallCond'])
+print(f"Dropped the following columns: ")
+display(columns_to_drop)
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+df3 = get_summary_info_sorted(model)
+get_r2_adjusted_r2(model)
+df3[['feature', 'P>|t|']].head(20)
+
+
+# %%
+
+columns_to_drop1 = []
+print(f"Dropped the following columns: ")
+display(columns_to_drop1)
+model, data = drop_features_and_create_model(
+    df, columns_to_drop1, 'SalePrice', build_ols_lasso_model)
+# df3 = get_summary_info_sorted(model)
+# get_r2_adjusted_r2(model)
+# df3[['feature', 'P>|t|']].head(20)
