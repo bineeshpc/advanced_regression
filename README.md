@@ -1,6 +1,11 @@
 # Project Name: House Price Prediction
 > The task involves constructing a multiple linear regression model to predict the house prices
 
+  - Predict actual values of prospective properties.
+  - Identify significant variables influencing price.
+  - Evaluate how well these variables describe the price.
+  - Determine optimal lambda values for ridge and lasso regression.
+  - This model will inform investment decisions by helping the company identify undervalued properties and maximize profit.
 
 ## Table of Contents
 * [General Info](#general-information)
