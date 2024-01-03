@@ -1453,8 +1453,9 @@ lasso_coefs["abs"] = np.abs(lasso_coefs["coef"])
 lasso_coefs.sort_values(by="abs", ascending=True)
 
 y_pred = best_lasso.predict(X_test_scaled)
-r2_score(y_pred, y_test)
+r2_score_value = r2_score(y_pred, y_test)
 
+print(f"r2 score value is {r2_score_value}")
 #%%
 
 lasso_coefs.sort_values(by="abs", ascending=True).head(63)
@@ -1465,3 +1466,88 @@ lasso_coefs.sort_values(by="abs", ascending=True).head(63)
 #%%
 
 lasso_coefs.sort_values(by="abs", ascending=False).head(10)
+
+#%% [markdown]
+# Q1: subjective question
+
+
+#%%
+
+# Fit the best model on the entire training data
+
+print(f"Best alpha and best alpha * 2: {best_alpha} and {best_alpha * 2}")
+best_lasso = Lasso(best_alpha * 2)
+best_lasso.fit(X_train_scaled, y_train)
+
+# Evaluate the best model on the test set
+test_score = best_lasso.score(X_test_scaled, y_test)
+print(f"Test score with best model: {test_score}")
+
+lasso_coefs = pd.DataFrame(best_lasso.coef_, X_train_scaled.columns, columns=["coef"])
+lasso_coefs["abs"] = np.abs(lasso_coefs["coef"])
+
+lasso_coefs.sort_values(by="abs", ascending=True)
+
+y_pred = best_lasso.predict(X_test_scaled)
+r2_score_value = r2_score(y_pred, y_test)
+
+print(f"r2 score value is {r2_score_value}")
+display(lasso_coefs.sort_values(by="abs", ascending=False).head(10))
+display(lasso_coefs.sort_values(by="abs", ascending=True).head(10).index)
+
+
+#%%
+
+X_train_scaled, X_test_scaled, y_train, y_test = get_data(df[handpicked_features])
+
+best_alpha, best_score, grid_search = tune_model(X_train_scaled, y_train, alphas, Ridge())
+
+print(f"Best alpha: {best_alpha} \nBest score: {best_score} \nBest estimator: {grid_search.best_estimator_}")
+
+# Get the best estimator (model)
+best_ridge = grid_search.best_estimator_
+
+# Fit the best model on the entire training data
+best_ridge.fit(X_train_scaled, y_train)
+
+# Evaluate the best model on the test set
+test_score = best_ridge.score(X_test_scaled, y_test)
+print(f"Test score with best model: {test_score}")
+
+ridge_coefs = pd.DataFrame(best_ridge.coef_, X_train_scaled.columns, columns=["coef"])
+ridge_coefs["abs"] = np.abs(ridge_coefs["coef"])
+
+ridge_coefs.sort_values(by="abs", ascending=True)
+
+y_pred = best_ridge.predict(X_test_scaled)
+r2_score_value = r2_score(y_pred, y_test)
+
+print(f"r2 score value is {r2_score_value}")
+
+display(ridge_coefs.sort_values(by="abs", ascending=False).head(10))
+display(ridge_coefs.sort_values(by="abs", ascending=True).head(10).index)
+
+
+#%%
+
+print(f"Best alpha and best alpha * 2: {best_alpha} and {best_alpha * 2}")
+best_ridge = Ridge(best_alpha * 2)
+# Fit the best model on the entire training data
+best_ridge.fit(X_train_scaled, y_train)
+
+# Evaluate the best model on the test set
+test_score = best_ridge.score(X_test_scaled, y_test)
+print(f"Test score with best model: {test_score}")
+
+ridge_coefs = pd.DataFrame(best_ridge.coef_, X_train_scaled.columns, columns=["coef"])
+ridge_coefs["abs"] = np.abs(ridge_coefs["coef"])
+
+ridge_coefs.sort_values(by="abs", ascending=True)
+
+y_pred = best_ridge.predict(X_test_scaled)
+r2_score_value = r2_score(y_pred, y_test)
+
+print(f"r2 score value is {r2_score_value}")
+
+display(ridge_coefs.sort_values(by="abs", ascending=False).head(10))
+display(ridge_coefs.sort_values(by="abs", ascending=True).head(10).index)

@@ -18,6 +18,40 @@
 
 #   - Lasso Regression: For Lasso regression, post-change, the most important predictor variables would be the ones with non-zero coefficients, as those are the features that remain in the model. 
 
+## specific to this dataset
+# These were the best features for Lasso
+
+# GrLivArea	
+# LotArea	
+# OverallQual_9	
+# YearBuilt	
+# TotalBsmtSF	
+# OverallQual_8	
+# BsmtFinSF1	
+# OverallCond_3	
+# Neighborhood_Crawfor	
+# Neighborhood_StoneBr
+
+# after doubling the alpha it became
+
+# ['MSSubClass_180', 'Exterior1st_AsphShn', 'Foundation_Wood',
+#        'Foundation_Stone', 'Foundation_Slab', 'Foundation_CBlock',
+#        'BsmtQual_None', 'OverallQual_10', 'OverallQual_6', 'OverallQual_2']
+
+
+# For Ridge the top features were 
+
+# ['Exterior2nd_HdBoard', 'GarageType_Detchd', 'MSSubClass_70',
+#        'Neighborhood_CollgCr', 'BsmtFinType1_BLQ', 'BsmtFinType1_Unf',
+#        'Exterior1st_HdBoard', 'MSSubClass_40', 'MSSubClass_80',
+#        'Exterior1st_AsphShn']
+
+# after doubling alpha it became
+
+# ['Exterior1st_WdShing', 'Neighborhood_CollgCr', 'Exterior2nd_VinylSd',
+#        'GarageType_Detchd', 'Exterior2nd_HdBoard', 'MSSubClass_80',
+#        'FireplaceQu_TA', 'TotRmsAbvGrd_6', 'BsmtFinType1_BLQ',
+    #    'Foundation_Stone']
 #%% [markdown]
 
 # ## Q2
