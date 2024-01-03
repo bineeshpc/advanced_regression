@@ -35,6 +35,7 @@ from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.stats.stattools import durbin_watson
 from scipy.stats import f_oneway
+from sklearn.metrics import r2_score, mean_squared_error
 
 import pandas as pd
 import numpy as np
@@ -1158,7 +1159,7 @@ def tune_model(X_train, y_train, alphas, model, cv=5):
 
 def get_data(df):
 
-    cat = categorical_variables
+    cat = list(set(categorical_variables).intersection(df.columns))
     df2 = create_dummy_variables(df, cat)
 
     X, y = create_X_y(df2, 'SalePrice')
@@ -1189,6 +1190,7 @@ alphas
 
 best_alpha, best_score, grid_search = tune_model(X_train_scaled, y_train, alphas, Lasso())
 
+print(f"Best alpha: {best_alpha} \nBest score: {best_score} \nBest estimator: {grid_search.best_estimator_}")
 
 #%%
 
@@ -1259,6 +1261,7 @@ plt.show()
 
 best_alpha, best_score, grid_search = tune_model(X_train_scaled, y_train, alphas, Ridge())
 
+print(f"Best alpha: {best_alpha} \nBest score: {best_score} \nBest estimator: {grid_search.best_estimator_}")
 
 #%%
 
@@ -1391,3 +1394,74 @@ lasso_coefs1.sort_values(by="abs", ascending=False)
 # * BsmtFinSF1
 # * Neighborhood_StoneBr
 # * OverallCond
+
+#%% [markdown]
+
+### Model using handpicked features
+
+# * Some features were handpicked based on domain knowledge and based on different models created
+# * There are only 24 handpicked features
+#%%
+
+handpicked_features = ['GrLivArea',
+ 'GarageFinish',
+ 'MSSubClass',
+ '1stFlrSF',
+ 'Exterior1st',
+ 'LotFrontage',
+ 'GarageCars',
+ 'BsmtFinType1',
+ 'FireplaceQu',
+ 'BsmtFullBath',
+ 'TotRmsAbvGrd',
+ 'GarageType',
+ 'BsmtFinSF1',
+ 'YearBuilt',
+ '2ndFlrSF',
+ 'Foundation',
+ 'Exterior2nd',
+ 'MSZoning',
+ 'LotArea',
+ 'TotalBsmtSF',
+ 'OverallQual',
+ 'OverallCond',
+ 'Neighborhood',
+ 'BsmtQual',
+'SalePrice']
+handpicked_features
+
+#%%
+X_train_scaled, X_test_scaled, y_train, y_test = get_data(df[handpicked_features])
+
+best_alpha, best_score, grid_search = tune_model(X_train_scaled, y_train, alphas, Lasso())
+
+print(f"Best alpha: {best_alpha} \nBest score: {best_score} \nBest estimator: {grid_search.best_estimator_}")
+
+# Get the best estimator (model)
+best_lasso = grid_search.best_estimator_
+
+# Fit the best model on the entire training data
+best_lasso.fit(X_train_scaled, y_train)
+
+# Evaluate the best model on the test set
+test_score = best_lasso.score(X_test_scaled, y_test)
+print(f"Test score with best model: {test_score}")
+
+lasso_coefs = pd.DataFrame(best_lasso.coef_, X_train_scaled.columns, columns=["coef"])
+lasso_coefs["abs"] = np.abs(lasso_coefs["coef"])
+
+lasso_coefs.sort_values(by="abs", ascending=True)
+
+y_pred = best_lasso.predict(X_test_scaled)
+r2_score(y_pred, y_test)
+
+#%%
+
+lasso_coefs.sort_values(by="abs", ascending=True).head(63)
+
+#%% [markdown]
+# * Lasso has made 63 features as 0 (63 features because of dummy encoding)
+# * Below are the 10 most important features
+#%%
+
+lasso_coefs.sort_values(by="abs", ascending=False).head(10)
