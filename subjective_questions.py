@@ -32,6 +32,21 @@
 # ## Q3
 # 3. After building the model, you realised that the five most important predictor variables in the lasso model are not available in the incoming data. You will now have to create another model excluding the five most important predictor variables. Which are the five most important predictor variables now?
 
+# <br> In one of my lasso models the top 5 features were
+# * GrLivArea
+# * LotArea
+# * TotalBsmtSF
+# * YearBuilt
+# * OverallQual
+
+# ##### Best features dropping top 5 features are
+
+
+# * 1stFlrSF
+# * 2ndFlrSF
+# * BsmtFinSF1
+# * Neighborhood_StoneBr
+# * OverallCond
 #%% [markdown]
 
 # ## Q4
