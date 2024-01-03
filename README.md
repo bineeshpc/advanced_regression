@@ -1,48 +1,39 @@
-# Project Name
-> Outline a brief description of your project.
+# Project Name: House Price Prediction
+> The task involves constructing a multiple linear regression model to predict the house prices
 
 
 ## Table of Contents
 * [General Info](#general-information)
 * [Technologies Used](#technologies-used)
-* [Conclusions](#conclusions)
 * [Acknowledgements](#acknowledgements)
 
 <!-- You can include any other section that is pertinent to your problem -->
 
 ## General Information
-- Provide general information about your project here.
-- What is the background of your project?
-- What is the business probem that your project is trying to solve?
-- What is the dataset that is being used?
+- Model the price of houses with the available independent variables.
+- Use the model to understand how exactly the prices vary with the variables.
+- Manipulate the strategy of the firm and concentrate on areas that will yield high returns based on the model.
+- Understand the pricing dynamics of a new market using the model.
 
 <!-- You don't have to answer all the questions - just the ones relevant to your project. -->
 
-## Conclusions
-- Conclusion 1 from the analysis
-- Conclusion 2 from the analysis
-- Conclusion 3 from the analysis
-- Conclusion 4 from the analysis
-
-<!-- You don't have to answer all the questions - just the ones relevant to your project. -->
 
 
 ## Technologies Used
-- library - version 1.0
-- library - version 2.0
-- library - version 3.0
+- matplotlib
+- scikitlearn
+- statsmodels
 
 <!-- As the libraries versions keep on changing, it is recommended to mention the version of library used in this project -->
 
 ## Acknowledgements
 Give credit here.
-- This project was inspired by...
-- References if any...
-- This project was based on [this tutorial](https://www.example.com).
+- This project was inspired by upgrad course material
+- References if any geeks for geeks
 
 
 ## Contact
-Created by [@githubusername] - feel free to contact me!
+Created by [@bineeshpc] - feel free to contact me!
 
 
 <!-- Optional -->
