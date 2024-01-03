@@ -1224,6 +1224,8 @@ lasso_coefs[lasso_coefs["abs"] == 0]
 
 len(lasso_coefs)
 
+#%%
+lasso_coefs.sort_values(by="abs", ascending=False)
 
 #%%
 
@@ -1275,8 +1277,8 @@ print(f"Test score with best model: {test_score}")
 #%%
 
 
-ridge_coefs = pd.DataFrame(best_lasso.coef_, X_train_scaled.columns, columns=["coef"])
-ridge_coefs["abs"] = np.abs(lasso_coefs["coef"])
+ridge_coefs = pd.DataFrame(best_ridge.coef_, X_train_scaled.columns, columns=["coef"])
+ridge_coefs["abs"] = np.abs(ridge_coefs["coef"])
 
 ridge_coefs.sort_values(by="abs", ascending=True)
 
@@ -1318,3 +1320,74 @@ plt.grid(True)
 plt.legend()
 plt.show()
 
+#%% [markdown]
+# # Q3: in subjective questions
+# 
+# * GrLivArea
+# * LotArea
+# * TotalBsmtSF
+# * YearBuilt
+# * OverallQual
+# 
+# 
+# are the top features in the lasso model.
+# 
+# 
+# Dropping these features and building another model
+
+#%%
+
+
+lasso_coefs.sort_values(by="abs", ascending=False)
+
+
+#%%
+
+X_train_scaled.columns[X_train_scaled.columns.str.startswith('OverallQual')]
+
+
+#%%
+
+top_5_columns = ["GrLivArea", "LotArea", "TotalBsmtSF", "YearBuilt", 'OverallQual_2', 'OverallQual_3', 'OverallQual_4', 'OverallQual_5',
+       'OverallQual_6', 'OverallQual_7', 'OverallQual_8', 'OverallQual_9',
+       'OverallQual_10']
+X_train_scaled_dropped = X_train_scaled.drop(columns=top_5_columns)
+X_test_scaled_dropped = X_test_scaled.drop(columns=top_5_columns)
+
+
+#%%
+
+best_alpha, best_score, grid_search = tune_model(X_train_scaled_dropped, y_train, alphas, Lasso())
+
+
+#%%
+
+# Get the best estimator (model)
+best_lasso1 = grid_search.best_estimator_
+
+# Fit the best model on the entire training data
+best_lasso1.fit(X_train_scaled_dropped, y_train)
+
+# Evaluate the best model on the test set
+test_score = best_lasso1.score(X_test_scaled_dropped, y_test)
+print(f"Test score with best model: {test_score}")
+
+
+#%%
+
+lasso_coefs1 = pd.DataFrame(best_lasso1.coef_, X_train_scaled_dropped.columns, columns=["coef"])
+lasso_coefs1["abs"] = np.abs(lasso_coefs1["coef"])
+
+lasso_coefs1.sort_values(by="abs", ascending=False)
+                                                         
+
+#%% [markdown]
+# ## Best features avoiding top 5 features
+# 
+# Now the top 5 features are 
+# 
+# * 1stFlrSF
+# * 2ndFlrSF
+# * BsmtFinSF1
+# * Neighborhood_StoneBr
+# * OverallCond
