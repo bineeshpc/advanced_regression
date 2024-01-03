@@ -47,6 +47,7 @@ import sklearn.linear_model as linear_model
 import sklearn.metrics as metrics
 import sklearn.preprocessing as preprocessing
 import sklearn.model_selection as model_selection
+from sklearn.model_selection import GridSearchCV
 import sklearn.feature_selection as feature_selection
 import sklearn.pipeline as pipeline
 import ast
@@ -378,7 +379,6 @@ for categorical_variable in categorical_variables:
 # %%
 
 
-# Load your dataset (replace 'your_dataset.csv' with your actual dataset)
 data = df
 
 # Assuming 'categorical_var' is the column name of your categorical variable
@@ -464,7 +464,8 @@ sns.scatterplot(x='GrLivArea', y='SalePrice', data=df)
 df = remove_outliers(df, ['GrLivArea', 'SalePrice'])
 sns.scatterplot(x='GrLivArea', y='SalePrice', data=df)
 
-
+#%%
+df.shape
 # %%
 
 
@@ -481,14 +482,11 @@ def get_metrics(y_train, y_train_pred, y_test, y_test_pred):
 
     return pd.DataFrame(d, index=["training", "test"])
 
-
-# %%
-
 # build a model with only numerical variables
-df1 = df.drop(columns=categorical_variables)
-df1 = df1.drop(columns=['Id'])
-X = df1.drop(columns=['SalePrice'])
-y = df1['SalePrice']
+df_num = df.drop(columns=categorical_variables)
+df_num = df_num.drop(columns=['Id'])
+X = df_num.drop(columns=['SalePrice'])
+y = df_num['SalePrice']
 
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.3, random_state=42)
@@ -529,6 +527,7 @@ df['SalePrice'].describe()
 pd.Series(model.coef_, X_train.columns).sort_values(ascending=False)
 
 # %%
+
 # sorted_by_f_st.head(2)
 important_categoricals = sorted_by_f_st[sorted_by_f_st['f_statistic'] > 300]
 display(important_categoricals)
@@ -705,6 +704,8 @@ def scaled_arrays_to_dataframe(X_scaled, columns):
     """
     df_scaled = pd.DataFrame(X_scaled, columns=columns)
     return df_scaled
+
+#%%
 
 # %%
 
@@ -938,6 +939,8 @@ build_ols_model(X_train_scaled, y_train)
 sorted_df[sorted_df['Variable 2'] == 'BedroomAbvGr'].head(1)
 
 ##
+#%%
+
 
 # %%
 columns_to_drop = []
@@ -1072,7 +1075,7 @@ df3[['feature', 'P>|t|']].head(20)
 columns_to_drop.extend(['BsmtFinType1'])
 print(f"Dropped the following columns: ")
 display(columns_to_drop)
-model = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
+model, data = drop_features_and_create_model(df, columns_to_drop, 'SalePrice')
 df3 = get_summary_info_sorted(model)
 get_r2_adjusted_r2(model)
 df3[['feature', 'P>|t|']].head(20)
@@ -1118,3 +1121,200 @@ model, data = drop_features_and_create_model(
 # df3 = get_summary_info_sorted(model)
 # get_r2_adjusted_r2(model)
 # df3[['feature', 'P>|t|']].head(20)
+
+#%%
+df.shape
+
+#%%
+df.head(5)
+#%% [markdown]
+
+# ## RFE gave us some features
+# ## Trying lasso with hyper parameter tuning with all features
+
+#%%
+
+#%% 
+
+
+def tune_model(X_train, y_train, alphas, model, cv=5):
+    
+    # Create a parameter grid to search for the best alpha
+    param_grid = {'alpha': alphas}
+
+    # Perform grid search using cross-validation
+    grid_search = GridSearchCV(model, param_grid, cv=cv, return_train_score=True)
+    grid_search.fit(X_train, y_train)
+
+    # Get the best alpha and the best score
+    best_alpha = grid_search.best_params_['alpha']
+    best_score = grid_search.best_score_
+
+    return best_alpha, best_score, grid_search
+
+
+#%%
+
+
+def get_data(df):
+
+    cat = categorical_variables
+    df2 = create_dummy_variables(df, cat)
+
+    X, y = create_X_y(df2, 'SalePrice')
+    X_train, X_test, y_train, y_test = perform_train_test_split(
+        X, y, test_size=0.3, random_state=42)
+    X_train_scaled, X_test_scaled = scale_features_with_scaler(
+        MinMaxScaler(), X_train, X_test)
+    X_train_scaled = scaled_arrays_to_dataframe(
+        X_train_scaled, X_train.columns)
+    X_test_scaled = scaled_arrays_to_dataframe(X_test_scaled, X_test.columns)
+    
+    return X_train_scaled, X_test_scaled, y_train, y_test
+
+X_train_scaled, X_test_scaled, y_train, y_test = get_data(df)
+
+
+
+#%%
+
+
+alphas = [1e-4 * (10 ** i) for i in range(4)] + [i / 10 for i in range(2, 11)] + [float(i) for i in range(2, 11)] + [float(i) for i in range(20, 110, 10)] + [float(i) for i in range(200, 1010, 100)] + [float(i) for i in range(2000, 5010, 1000)]
+
+alphas
+
+
+#%%
+
+
+best_alpha, best_score, grid_search = tune_model(X_train_scaled, y_train, alphas, Lasso())
+
+
+#%%
+
+
+# Get the best estimator (model)
+best_lasso = grid_search.best_estimator_
+
+# Fit the best model on the entire training data
+best_lasso.fit(X_train_scaled, y_train)
+
+# Evaluate the best model on the test set
+test_score = best_lasso.score(X_test_scaled, y_test)
+print(f"Test score with best model: {test_score}")
+
+
+#%%
+
+
+lasso_coefs = pd.DataFrame(best_lasso.coef_, X_train_scaled.columns, columns=["coef"])
+lasso_coefs["abs"] = np.abs(lasso_coefs["coef"])
+
+lasso_coefs.sort_values(by="abs", ascending=True)
+
+
+#%%
+
+
+lasso_coefs[lasso_coefs["abs"] == 0]
+
+
+#%%
+
+
+len(lasso_coefs)
+
+
+#%%
+
+
+cv_results = pd.DataFrame(grid_search.cv_results_)
+cv_results.head()
+
+
+#%%
+
+
+# Get the cross-validation results
+alphas = np.array(cv_results.param_alpha).astype(float)
+mean_train_scores = cv_results['mean_train_score']
+mean_test_scores = cv_results['mean_test_score']
+
+# Plotting the cross-validation results
+plt.figure(figsize=(8, 6))
+plt.plot(np.log10(alphas), mean_train_scores, marker='o', label='mean_train_score')
+plt.plot(np.log10(alphas), mean_test_scores, marker='v', label='mean_test_score')
+plt.xlabel('log(alpha)')
+plt.ylabel('Mean Cross-validated Score')
+plt.title('Cross-validation Results')
+plt.grid(True)
+plt.legend()
+plt.show()
+
+
+#%%
+
+
+best_alpha, best_score, grid_search = tune_model(X_train_scaled, y_train, alphas, Ridge())
+
+
+#%%
+
+
+# Get the best estimator (model)
+best_ridge = grid_search.best_estimator_
+
+# Fit the best model on the entire training data
+best_ridge.fit(X_train_scaled, y_train)
+
+# Evaluate the best model on the test set
+test_score = best_ridge.score(X_test_scaled, y_test)
+print(f"Test score with best model: {test_score}")
+
+
+#%%
+
+
+ridge_coefs = pd.DataFrame(best_lasso.coef_, X_train_scaled.columns, columns=["coef"])
+ridge_coefs["abs"] = np.abs(lasso_coefs["coef"])
+
+ridge_coefs.sort_values(by="abs", ascending=True)
+
+
+#%%
+
+
+ridge_coefs.sort_values(by="coef", ascending=False)
+
+
+#%%
+
+
+len(ridge_coefs)
+
+
+#%%
+
+
+cv_results = pd.DataFrame(grid_search.cv_results_)
+cv_results.head()
+
+
+#%%
+
+# Get the cross-validation results
+alphas = np.array(cv_results.param_alpha).astype(float)
+mean_train_scores = cv_results['mean_train_score']
+mean_test_scores = cv_results['mean_test_score']
+
+# Plotting the cross-validation results
+plt.figure(figsize=(8, 6))
+plt.plot(np.log10(alphas), mean_train_scores, marker='o', label='mean_train_score')
+plt.plot(np.log10(alphas), mean_test_scores, marker='v', label='mean_test_score')
+plt.xlabel('log(alpha)')
+plt.ylabel('Mean Cross-validated Score')
+plt.title('Cross-validation Results')
+plt.grid(True)
+plt.legend()
+plt.show()
+
